@@ -1,0 +1,6 @@
+name = AI Villagers (Alpha)
+author = AgeOfAlgorithms
+description = ONLY WORKS WITH KOETAMA (the free app that runs the AI) and the Proximity Comms mod. AI villagers who live their own lives on any map: they find houses and beds, work, gossip, sleep at night, talk with you and with each other, remember you, and are not all nice.
+tags = Gameplay
+version = 2
+preview = preview_td.jpg
