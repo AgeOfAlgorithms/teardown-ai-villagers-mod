@@ -22,11 +22,11 @@ Four live in the village by default: **Betty** the warm baker, **Henry** the gos
 - **Get hurt**: weapons, bullets, explosions, fire, blowtorches and cars. They bleed, collapse, can be bandaged back up - or die, and their neighbours will remember who did it.
 
 ## Works with
-- **Proximity Comms** (required): their voices, speech bubbles and babble.
-- **Day & Night & Weather Cycle**: their clock and the date they talk about.
-- **McPuppet Inventory System**: they see what you wear and hold, and the Inventory's weapons and punches hurt them.
-- **Creature mods**: Lily, Dreadweaver, Abyssipede and Giant Centipedes hunt villagers like players; each villager decides for themselves what they think of every creature they meet (and of Mochi and Duchess).
-- **Modders**: an API lets any mod describe its creatures and things to the villagers, tell them news, give them quests, hurt them or read where they are. See API.md in the mod's folder.
+- **[Proximity Comms](https://steamcommunity.com/sharedfiles/filedetails/?id=3812301496)** (required): their voices, speech bubbles and babble.
+- **[Day & Night & Weather Cycle](https://steamcommunity.com/sharedfiles/filedetails/?id=3838065082)**: their clock and the date they talk about.
+- **[McPuppet Inventory System](https://steamcommunity.com/sharedfiles/filedetails/?id=3840357667)**: they see what you wear and hold, and the Inventory's weapons and punches hurt them.
+- **Creature mods**: [Lily](https://steamcommunity.com/sharedfiles/filedetails/?id=3837310472), [Dreadweaver](https://steamcommunity.com/sharedfiles/filedetails/?id=3837295009), [Abyssipede](https://steamcommunity.com/sharedfiles/filedetails/?id=3833158470) and [Giant Centipedes](https://steamcommunity.com/sharedfiles/filedetails/?id=3838368186) hunt villagers like players; each villager decides for themselves what they think of every creature they meet (and of [Mochi](https://steamcommunity.com/sharedfiles/filedetails/?id=3826771785) and [Duchess](https://steamcommunity.com/sharedfiles/filedetails/?id=3833506307)).
+- **Modders**: an API lets any mod describe its creatures and things to the villagers, tell them news, give them quests, hurt them or read where they are. See [API.md](API.md).
 
 ## Options
 - **Villagers**: switch each of the twelve on or off (four by default).
