@@ -415,7 +415,7 @@ end
 
 -- The whole persona for proxchat.agent.<id>.persona (about 4-5 KB; the chat takes 8 KB). The memory module's
 -- forPersona text can be appended by the brain.
--- (the user, 2026-11-15: "It's weird to call this village Dunmarrow when the maps they spawn in has explicit names ...
+-- (the user, 2026-11-15: "It's weird to call this village <the made-up name> when the maps they spawn in has explicit names ...
 -- add the map name to their prompts instead") every text above says {village}: VlSetPlace puts the map's name in,
 -- once, when the village is made (main.lua)
 function VlSetPlace(name)
