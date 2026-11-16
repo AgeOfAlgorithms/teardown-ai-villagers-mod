@@ -101,8 +101,28 @@ function VlPicked(id)
 	return (VL_CFG.defaultVillagers or {})[id] == true
 end
 
+-- the map's name: game.mod.title (seen in game: "Frustrum"), else the mod list's, else the level's folder tidied up
+function VlMapName()
+	local n = GetString("game.mod.title")
+	local id = GetString("game.levelid")
+	if n == "" and id ~= "" then n = GetString("mods.available." .. id .. ".name") end
+	if n == "" then
+		n = (id ~= "" and id or (GetString("game.levelpath"):match("mods/([^/]+)/") or "")):gsub("^builtin%-", ""):gsub("^local%-", ""):gsub("[_%-]+", " ")
+		n = n:gsub("(%a)(%w*)", function(a, b) return a:upper() .. b end)
+	end
+	n = n:gsub("%s*%b()", ""):gsub("^%s+", ""):gsub("%s+$", "")
+	return n ~= "" and n or "this place"
+end
+
 local function makeVillagers()
 	VL.all = {}
+	if VlSetPlace and not VL_PLACE_NAME then
+		VlSetPlace(VlMapName())
+		-- the map's own blurb (game.mod.description, e.g. "Tiny village of Frustrum along ..."): its first sentence
+		local d = GetString("game.mod.description"):gsub("%s+", " ")
+		d = d:match("^(.-[%.!?])%s") or d
+		VL_PLACE_ABOUT = #d > 0 and d:sub(1, 200) or nil
+	end
 	for k, p in ipairs(VL_PEOPLE or {}) do
 	if VlPicked(p.id) then                                    -- (the options' pick, else the default four)
 		local V = {k = k, id = p.id, p = p, name = p.name, agent = "vl_" .. p.id, hp = 100, alive = true, notes = {},

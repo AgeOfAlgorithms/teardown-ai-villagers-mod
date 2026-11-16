@@ -1,4 +1,4 @@
-# Villagers of Dunmarrow: API for other mods
+# AI Villagers: API for other mods
 
 The villagers read and write ordinary **registry keys on the host**. Any mod can use them: a creature mod, a map, a
 game mode or a quest mod. You don't need to include or require anything. If the Villagers mod isn't running, nothing

@@ -10,7 +10,7 @@ On the Steam Workshop: [AI Villagers (Alpha)](https://steamcommunity.com/sharedf
 
 A small village moves into any map. The villagers find houses and beds on their own, go to work, drink at the tavern, pray at the chapel, gossip, quarrel and sleep at night. Talk to them out loud or in the chat and they answer as themselves: in their own words, in their own mood, and not always nicely. They talk to each other too, even when nobody is watching.
 
-## Twelve villagers of Dunmarrow
+## Twelve villagers
 Four live in the village by default: **Betty** the warm baker, **Henry** the gossiping tavern keeper, **Frank** the curt blacksmith and **Victor**, the night watchman who takes bribes. Eight more can move in from the mod's options: the old chapel keeper, the gravedigger who hears the dead under the hill, the reckless apprentice, a money-minded shopkeeper, a preacher of a strange new faith, the reeve, a grumpy shepherd losing sheep, and the herb-woman. Each has a job, a faith, secrets, grudges and goals of their own.
 
 ## What they do

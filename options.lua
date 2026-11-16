@@ -1,4 +1,4 @@
--- Villagers of Dunmarrow: options (Mod Manager). The host's choice counts: their AI budget pays for the villagers.
+-- AI Villagers: options (Mod Manager). The host's choice counts: their AI budget pays for the villagers.
 
 local PACES = {"Quiet", "Calm", "Lively", "Bustling"}
 local WHAT = {
@@ -69,7 +69,7 @@ function draw()
 	UiAlign("center middle")
 	UiFont("bold.ttf", 44)
 	UiColor(1, 1, 1)
-	UiText("Villagers of Dunmarrow")
+	UiText("AI Villagers (Alpha)")
 	UiTranslate(0, 70)
 	UiFont("regular.ttf", 26)
 	UiText("Village life")
