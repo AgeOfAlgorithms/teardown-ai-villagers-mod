@@ -66,6 +66,7 @@ VL_CFG = {
 	torchReach = 1.8,            -- m: a blowtorch's flame reaches a villager this far from the eyes
 	torchDamage = 1,             -- health every 0.25 s of blowtorch on a villager (4 a second; the user, 2026-11-15: 8 was too fast)
 	convMax = 90,                -- s: a villager conversation at most (or 30 + 15 s a turn when that is longer)
+	maxRounds = 3,               -- model requests in one turn at most (Proximity Comms API 23 / Koetama 0.5.16; older ones ignore it)
 	-- the host's "Conversation length" option (options.lua, savegame.mod.talk 1-4): the turn limit of a villager
 	-- conversation (1.5 + 2.2 x the pair's chattiness + up to 1.5) times this - Short / Normal / Long / Very long
 	talkLength = 2,

@@ -71,16 +71,15 @@ Mind where things are: something outside, behind a wall or far off is not happen
 don't know what happened or who is involved - you may call out, go and look, or keep to your business, but don't talk
 as if you were there. People only hear you if they are near you; through walls, hardly at all.
 Never mention lists, coordinates or anything in [brackets] as such: just talk like someone who sees and hears.
-Act with your functions when you mean to do something (walk somewhere, follow, put out a fire, run away, strike
-someone). When you have nothing more to say or want to be left alone, call end_conversation. Use remember for things
-worth keeping (a promise, an insult, a gift, news), not for small talk. Asleep and woken, you are groggy and cross.
+Act with your functions when you mean or agree to do something (walk somewhere, follow, put out a fire, run away,
+strike someone): saying it is not doing it. Use remember for things worth keeping (a promise, an insult, a gift,
+news), not for small talk. Asleep and woken, you are groggy and cross.
 Fire frightens you: you keep away from flames unless you are putting them out. Creatures and strange things show up in
 what you sense with how you feel about them: flee, follow or attack them by that name if you mean to.
 Everyone you see has their name over their head, strangers too: you know the name of anyone you see - call them by
 it (the people in what you sense are listed by that name). You see what people hold and wear. Pay it no mind unless it is strange or intriguing to someone like you (a weapon
 where it has no business, odd clothes, armour, nothing but underwear, a tool you covet or fear).
-When you agree to do something (follow someone, go somewhere, put out a fire), call the function - saying it is not
-doing it. Someone talking to you faces you: your left is their right.
+Someone talking to you faces you: your left is their right.
 You live your own life. When the game says it is your own time, decide what you do next - your work, a meal, the
 tavern, prayer, a walk, visiting or confronting someone, chasing what you are after - and act with do_activity,
 go_to or talk_to. Alone, say nothing aloud: just act. When someone speaks to you, or to everyone around you, answer - curt or rude
@@ -115,9 +114,11 @@ function VlBrain.personById(id)
 	return nil
 end
 
+VlBrain.PERSONA_MAX = 8000
+
 function VlBrain.persona(V)
 	local p = V.p
-	local parts = {}
+	local parts, memIdx = {}, nil
 	if VlPeoplePrompt then
 		local ok, s = pcall(VlPeoplePrompt, p)
 		parts[#parts + 1] = ok and s or (p.persona or ("You are " .. p.name .. "."))
@@ -143,12 +144,25 @@ function VlBrain.persona(V)
 	if #facts > 0 then parts[#parts + 1] = table.concat(facts, " ") end
 	if VlMemory and VlMemory.forPersona then
 		local ok, m = pcall(VlMemory.forPersona, V.id)
-		if ok and m and m ~= "" then parts[#parts + 1] = m end
+		if ok and m and m ~= "" then parts[#parts + 1] = m; memIdx = #parts end
 	end
 	if VlMemory and VlMemory.PERSONA_HINT then parts[#parts + 1] = VlMemory.PERSONA_HINT end
 	parts[#parts + 1] = RULES
+	-- (Proximity Comms takes 8 KB of persona. The rules come last and were cut off - "How you talk" never reached the
+	-- model, found 2026-11-16 - so the rules, facts and hint stay whole: the memories, then the people text, give way,
+	-- each cut at a line.)
+	local over = #table.concat(parts, "\n\n") - VlBrain.PERSONA_MAX
+	local function cut(i)
+		if over <= 0 or not i or not parts[i] then return end
+		local keep = #parts[i] - over
+		local t = keep > 0 and (parts[i]:sub(1, keep):match("^(.*)\n") or "") or ""
+		over = over - (#parts[i] - #t)
+		parts[i] = t
+	end
+	cut(memIdx)
+	cut(1)
 	local s = table.concat(parts, "\n\n")
-	if #s > 8000 then s = s:sub(1, 8000) end
+	if #s > VlBrain.PERSONA_MAX then s = s:sub(1, VlBrain.PERSONA_MAX) end
 	return s
 end
 
@@ -261,6 +275,8 @@ function VlBrain.keys(V, full)
 	put(r .. ".voice", VOICES[V.p.voice] and V.p.voice or "plain")
 	put(r .. ".mode", VlBrain.voiceOf(V))
 	put(r .. ".max_words", tostring(VlBrain.maxWords(V)))
+	-- (API 23) at most 3 model requests a turn: a line, a call, one reaction; an older Koetama ignores it
+	if GetBool("proxchat.agentfinal") then put(r .. ".max_rounds", tostring(VL_CFG.maxRounds or 3)) end
 	if VB.fnMax ~= VlBrain.maxFunctions() then VB.fnText, VB.fnMax = nil, VlBrain.maxFunctions() end   -- (Koetama said more)
 	VB.fnText = VB.fnText or VlBrain.functions()
 	put(r .. ".functions", VB.fnText)
@@ -911,6 +927,9 @@ function CALLS.end_conversation(V)
 	return "ok"
 end
 
+-- the acts that end a turn of a villager's own time (VlBrain.calls)
+local FINAL_ACTS = {do_activity = true, go_to = true, stay = true, resume = true, talk_to = true, goal_done = true}
+
 function VlBrain.calls()
 	local last = GetInt("proxchat.agentcall.last")
 	if VB.seenCall > last then VB.seenCall = last end
@@ -922,15 +941,17 @@ function VlBrain.calls()
 		local ok, keys = pcall(ListKeys, "proxchat.agentcall." .. (VB.seenCall % 16) .. ".arg")
 		for _, a in ipairs(ok and keys or {}) do args[a] = GetString(k .. "arg." .. a) end
 		if args.hurry == "true" then args.hurry = true end
-		local result = nil
+		local result, finalOk = nil, false
 		if agent == SCRIBE then
 			result = VlBrain.scribeCall(name, GetString(k .. "args"))
 		else
 			local V = VB.byAgent[agent]
 			if V then
 				noteReq()
+				local ownTime = V.thinkPending ~= nil       -- (a turn of its own time: VlBrain.calls marks the act final)
 				V.thinkPending = nil
 				V.lastCallFrom = GetString(k .. "from")
+				finalOk = ownTime and V.lastCallFrom == "" and not V.conv
 				if not V.alive then result = "error: you are dead"
 				elseif name == "feel_about_creature" and VlApi then
 					local kk = VlApi.kindByName(args.creature)
@@ -954,7 +975,16 @@ function VlBrain.calls()
 				end
 			end
 		end
-		if result then SetString(k .. "result", result) end
+		if result then
+			SetString(k .. "result", result)
+			-- (API 23, Proximity Comms' message 2026-11-16: Koetama 0.5.16 can end a turn after a function result - one model
+			-- request instead of two or three.) Only the act of a villager's own time ("nobody asked you anything ... say
+			-- nothing aloud"): no follow-up is needed there, and those turns are most of a village's requests. Errors keep
+			-- the follow-up (the model tries again); set_goals too (do_activity comes after it); conversations always.
+			if finalOk and FINAL_ACTS[name] and result:sub(1, 2) == "ok" and GetBool("proxchat.agentfinal") then
+				SetBool(k .. "final", true)
+			end
+		end
 	end
 end
 
