@@ -1741,7 +1741,8 @@ function VlBrain.sees(O, pos)
 	local fl = Vec(pos[1] - O.w.pos[1], 0, pos[3] - O.w.pos[3])
 	local L = VecLength(fl)
 	if L > 2.5 and (fl[1] * O.w.fwd[1] + fl[3] * O.w.fwd[3]) / L < -0.35 then return false end   -- (behind them)
-	return VlPerceive.clear(eye, pos)
+	if VlApi and VlApi.blind and VlApi.blind(O) then return false end
+	return VlPerceive.sight(eye, pos)
 end
 
 -- an event to everyone who senses it: SEEN (in view, nothing in the way) or HEARD (within opts.hearRange, only 40 % as

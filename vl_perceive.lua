@@ -80,6 +80,11 @@ function VlPerceive.clear(a, b, reject)
 	return not hit
 end
 
+-- seeing (not hearing, not reaching): no wall and no smoke (another mod's villagers.cover clouds, vl_api.lua) between
+function VlPerceive.sight(a, b, reject)
+	return VlPerceive.clear(a, b, reject) and not (VlApi and VlApi.smokeBlocks and VlApi.smokeBlocks(a, b))
+end
+
 -- a creature of another mod given as a point (no body to ignore): the ray may stop on the creature itself, so a hit
 -- within `slack` m of the point still counts as seeing it
 function VlPerceive.clearNear(a, b, reject, slack)
@@ -93,6 +98,7 @@ function VlPerceive.clearNear(a, b, reject, slack)
 end
 
 local function inView(self, pos)
+	if self.blind then return false end                      -- (a flash-bang: villagers.flash, vl_api.lua)
 	local d = VecSub(pos, self.pos)
 	d[2] = 0
 	local L = VecLength(d)
@@ -185,7 +191,8 @@ function VlPerceive.build(V, all)
 	local e = eyes(pos)
 	local range = seeRange(V)
 	local self = {name = V.name, pos = VecCopy(pos), fwd = VecCopy(fwd), doing = VlLife.doingText(V),
-		place = V.place and V.place.name or nil}
+		place = V.place and V.place.name or nil, blind = VlApi and VlApi.blind and VlApi.blind(V) or nil}
+	if self.blind then self.doing = "blinded by a flash, rubbing your eyes" end
 	local b = VlPlaces.buildingAt and VlPlaces.buildingAt(pos)
 	if b then
 		self.indoor = true
@@ -202,7 +209,7 @@ function VlPerceive.build(V, all)
 		local t = GetPlayerTransform(p)
 		local chest = VecAdd(t.pos, Vec(0, 1.2, 0))
 		local d = VecLength(VecSub(chest, e))
-		if d < range and inView(self, t.pos) and VlPerceive.clear(e, chest) then
+		if d < range and inView(self, t.pos) and VlPerceive.sight(e, chest) then
 			local held = VlPerceive.holding(p)
 			local hf = held and VlApi and VlApi.feelText(VlApi.itemFeel(V, GetPlayerTool(p)))
 			if hf then held = held .. " (" .. hf .. ")" end
@@ -224,7 +231,7 @@ function VlPerceive.build(V, all)
 		if O ~= V then
 			local chest = VecAdd(O.w.pos, Vec(0, O.posture == "lie" and 0.5 or 1.2, 0))
 			local d = VecLength(VecSub(chest, e))
-			if d < range and inView(self, O.w.pos) and VlPerceive.clear(e, chest) then
+			if d < range and inView(self, O.w.pos) and VlPerceive.sight(e, chest) then
 				T[#T + 1] = {kind = "villager", name = O.name, pos = VecCopy(O.w.pos), fwd = VecCopy(O.w.fwd), sense = "seen",
 					doing = villagerDoing(O), holding = O.carrying == "extinguisher" and "a fire extinguisher" or nil, id = O.id,
 					hurt = O.alive and O.hp < VL_CFG.bleedBelow or nil,
@@ -247,7 +254,7 @@ function VlPerceive.build(V, all)
 				if h and IsHandleValid(h) and not registered then
 					local ap = GetBodyTransform(h).pos
 					local d = VecLength(VecSub(ap, e))
-					if d < range and inView(self, ap) and VlPerceive.clear(e, ap, h) then
+					if d < range and inView(self, ap) and VlPerceive.sight(e, ap, h) then
 						local nm = GetString("proxchat.agent." .. id .. ".name")
 						local kind = (id:find("mochi") or id:find("duchess")) and "animal" or "character"
 						local what = id:find("mochi") and " (a corgi dog)" or (id:find("duchess") and " (a black cat)" or "")
@@ -268,7 +275,8 @@ function VlPerceive.build(V, all)
 				local feel = VlApi.feel(V, t.kind)
 				if feel ~= "ignore" then
 					local K = VlApi.kinds[t.kind] or {}
-					if not t.hidden and d < range and inView(self, t.pos) and VlPerceive.clearNear(e, t.pos, t.body, t.body and 0.3 or 1.5) then
+					if not t.hidden and d < range and inView(self, t.pos) and VlPerceive.clearNear(e, t.pos, t.body, t.body and 0.3 or 1.5)
+						and not (VlApi and VlApi.smokeBlocks and VlApi.smokeBlocks(e, t.pos)) then
 						n = n + 1
 						T[#T + 1] = {kind = "creature", name = t.name, pos = VecCopy(t.pos), sense = "seen",
 							doing = t.doing ~= "" and t.doing or nil, feel = feel, thing = t, danger = K.danger or 0}
@@ -288,7 +296,7 @@ function VlPerceive.build(V, all)
 		local n = 0
 		pcall(function() n = QueryAabbFireCount(VecSub(fp, Vec(3, 3, 3)), VecAdd(fp, Vec(3, 3, 3))) end)
 		local size = n > 25 and "a big fire" or (n > 6 and "a fire" or "small flames")
-		if d < range and inView(self, fp) and VlPerceive.clear(e, VecAdd(fp, Vec(0, 0.3, 0))) then
+		if d < range and inView(self, fp) and VlPerceive.sight(e, VecAdd(fp, Vec(0, 0.3, 0))) then
 			T[#T + 1] = {kind = "fire", name = size, pos = VecCopy(fp), sense = "seen", doing = "burning", size = n > 25 and "big" or (n <= 6 and "small" or nil)}
 		else
 			T[#T + 1] = {kind = "fire", name = "smoke", pos = VecCopy(fp), sense = "smelled", doing = "something is burning"}

@@ -3,7 +3,7 @@
 The villagers read and write ordinary **registry keys on the host**. Any mod can use them: a creature mod, a map, a
 game mode or a quest mod. You don't need to include or require anything. If the Villagers mod isn't running, nothing
 reads your keys, so writing them is always safe. To check whether it's running, read `villagers.present` (true once
-the villagers exist) and `villagers.version` (currently 1).
+the villagers exist) and `villagers.version` (currently 2).
 
 Every key below is a host key: write and read them in `server.*` callbacks.
 
@@ -279,12 +279,52 @@ raycast can include layer 64 in their mask and look up the hit shape in `village
 | `villagers.slow.<villager id>.factor` | 0.05..1: their walking speed is multiplied by this (webs, mud, a grip on the leg) ... |
 | `villagers.slow.<villager id>.until` | ... until this host time (`GetTime()` + seconds) |
 
+### Explosions and shots: already counted
+
+The game's own explosions (`Explosion()`, a bomb, a propane tank) and bullets that hit a villager's hitbox hurt the
+villagers without your help, and they hear them from far off. Nobody tells them who set one off: like people, they
+only know what they saw (who was holding a detonator, who planted something) and work out the rest themselves.
+
+For a bullet, the villagers guess the shooter from the player aiming at that spot. When your device fires (a trap, a
+mine, a turret), write a cause the same frame, so no player is blamed for it:
+
+`villagers.cause.<n % 16>.*`, then `villagers.cause.last = n`
+
+| key | meaning |
+|---|---|
+| `.x .y .z` / `.r` | the blast or shot point, and how close (m) an engine explosion or bullet hit must be to it |
+| `.until` | until this host time (`GetTime()` + 0.5 is plenty) |
+| `.handled` | `true`: you hurt the villagers yourself (with `villagers.hurt.*`), so the engine's hits there don't hurt them again |
+
+Don't send `villagers.news` for your own explosions either: they already hear them.
+
+### Flash-bangs and smoke
+
+`villagers.flash.<n % 16>.*`, then `villagers.flash.last = n`: a blinding flash and a bang. Give the point, and the
+villagers work out who sees it (walls, smoke, facing it or not).
+
+| key | meaning |
+|---|---|
+| `.x .y .z` | where it goes off |
+| `.range` | how far it reaches (m), e.g. 15 |
+| `.strength` | 0..1. Someone who looks straight at it close by is blinded for up to 6 s × strength, from the side for half that, and back-turned only by the glare. Blinded, they stand still and see nothing. Everyone in range hears the bang, and sleepers near it wake |
+
+`villagers.v.<id>.blind` is true while they're blinded.
+
+`villagers.cover.<n % 16>.*`, then `villagers.cover.last = n`: smoke the villagers can't see through.
+
+| key | meaning |
+|---|---|
+| `.x .y .z` / `.r` | a sphere: nothing behind it or in it is seen, except within an arm's length (1.5 m) |
+| `.until` | until this host time |
+| `.id` | optional: the same id again moves or resizes that cloud (drifting smoke) |
+
 ## 5. Where the villagers are (out, twice a second)
 
 | key | meaning |
 |---|---|
 | `villagers.present` | true |
-| `villagers.version` | 1 |
+| `villagers.version` | 2 (since 2: cause, flash, cover and `.blind`) |
 | `villagers.list` | `"hesper,marl,..."`: every villager id |
 | `villagers.v.<id>.name` | their name ("Margaret") |
 | `villagers.v.<id>.x / .y / .z` | where their feet are (or the body, when lying down) |
@@ -294,6 +334,7 @@ raycast can include layer 64 in their mask and look up the hit shape in `village
 | `villagers.v.<id>.shape` | the hitbox shape handle |
 | `villagers.v.<id>.noise` | 0..1, how much noise they're making (for creatures that hunt by sound): asleep 0.02, standing 0.05, walking 0.3, running 0.7, talking 0.6, yelling, fighting or being dragged 0.8-1, whispering 0.15 |
 | `villagers.v.<id>.carried` | true while a creature holds them |
+| `villagers.v.<id>.blind` | true while a flash-bang has blinded them |
 | `villagers.feel.<id>.<k>` / `villagers.fear.<id>.<k>` | how that villager feels about your kind `<k>`, and how much they fear it (0..1) |
 
 A predator can use this to pick prey: the sleeping, those walking alone at night, the wounded, the noisy. Hunt them

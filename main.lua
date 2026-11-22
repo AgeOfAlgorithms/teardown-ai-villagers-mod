@@ -171,6 +171,9 @@ end
 local MELEE = {sledge = 34, plank = 12, crowbar = 26, knife = 30, axe = 40, machete = 40, bat = 26, hammer = 26}
 
 local function harm()
+	-- (another mod's villagers.cause: a device's blast / shot - nobody to blame - and whether it hurt them itself)
+	if VlApi and VlApi.causeTick then VlApi.causeTick() end
+	local causeAt = VlApi and VlApi.causeAt or function() return false, false, nil end
 	local n = GetEventCount("projectilehit")
 	for i = 1, n do
 		local shape, point, dir = GetEvent("projectilehit", i)
@@ -181,7 +184,11 @@ local function harm()
 			local p = shooterOf(point, d)
 			local by = p and GetPlayerName(p) or "Someone"
 			local at = p and GetPlayerTransform(p).pos or from
-			if V and V.alive then
+			local device, handled, cpos = causeAt(point)
+			if device then by, at = nil, cpos end
+			if handled then
+				-- (the mod that fired it hurt the villagers itself)
+			elseif V and V.alive then
 				local head = V.posture ~= "lie" and point[2] > (V.posture == "sit" and V.sitPos and V.sitPos[2] + 0.55 or V.w.pos[2] + 1.45)
 				VlBrain.hurt(V, VL_CFG.bulletDamage * (head and 2 or 1), by, at, point)
 			else
@@ -201,7 +208,9 @@ local function harm()
 	n = GetEventCount("explosion")
 	for i = 1, n do
 		local point, strength = GetEvent("explosion", i)
-		if point then
+		local handled = false
+		if point then handled = select(2, causeAt(point)) end
+		if point and not handled then
 			local r = 3 + 3 * (strength or 1)
 			for _, V in ipairs(VL.all) do
 				if V.alive then
@@ -404,7 +413,8 @@ local function publish()
 		local e = {k = i, id = V.id, char = V.p.character, x = V.w.pos[1], y = V.w.pos[2], z = V.w.pos[3], fx = fx, fz = fz,
 			post = post, spd = sp, talk = (V.talkUntil or 0) > GetTime(), ext = V.carrying == "extinguisher",
 			name = V.name, hp = math.floor(V.hp + 0.5), hitN = V.hitN or 0, down = V.downed or nil,
-			stag = V.knock and true or nil, sleep = V.asleep or nil}
+			stag = V.knock and true or nil, sleep = V.asleep or nil,
+			blind = (VlApi and VlApi.blind and V.alive and VlApi.blind(V)) or nil}
 		if post == "rag" and V.ragVel then e.ragN, e.rvx, e.rvy, e.rvz = V.ragN, V.ragVel[1], V.ragVel[2], V.ragVel[3] end
 		if V.lastHit then e.bx, e.by, e.bz = V.lastHit[1], V.lastHit[2], V.lastHit[3] end
 		if V.tending and V.tendAt then e.post = "kneel"; e.tx, e.ty, e.tz = V.tendAt[1], V.tendAt[2], V.tendAt[3] end

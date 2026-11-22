@@ -219,10 +219,24 @@ local function pose(c, dt)
 		end
 		return
 	else
+		-- (the user, 2026-11-21: "a simple one would be great") blinded by a flash-bang: hunched over, swaying and
+		-- stumbling about on the spot, both hands at the eyes (IK after the clips, below)
+		local blind = c.e.blind and post == "stand"
+		if blind then
+			local t = GetTime() + (c.k or 0) * 1.7
+			local side = VecNormalize(Vec(-(c.fz or 1), 0, c.fx or 0))
+			pos = VecAdd(pos, VecScale(side, math.sin(t * 1.3) * 0.09 + math.sin(t * 3.1) * 0.03))
+			rot = QuatRotateQuat(rot, QuatEuler(math.sin(t * 2.2) * 4, math.sin(t * 1.7) * 22, math.sin(t * 1.3) * 6))
+		end
 		SetAnimatorTransform(a, Transform(pos, rot))
 		PlayAnimationLoop(a, "idle_1", 1)
 		-- shoved: a stagger (the landing clip, half weight)
 		if c.e.stag then PlayAnimationLoop(a, "jump_land", 0.6) end
+		if blind then
+			BeginAnimationGroup(a, 0.45)
+			PlayAnimationLoop(a, "crouch_idle", 1)
+			EndAnimationGroup(a)
+		end
 		-- weak: bent over, half crouched (the user: "they should look weak")
 		if (c.hp or 100) < 45 then
 			BeginAnimationGroup(a, 0.5)
@@ -263,6 +277,16 @@ local function pose(c, dt)
 		end
 	end
 	PlayAnimationInstances(a)
+	if c.e.blind and post == "stand" then
+		local okh, head = pcall(GetBoneWorldTransform, a, "head")
+		if okh and head and head.pos then
+			local fwd = VecNormalize(Vec(c.fx or 0, 0, c.fz or 1))
+			local side = Vec(-fwd[3], 0, fwd[1])
+			local eyes = VecAdd(head.pos, VecAdd(VecScale(fwd, 0.16), Vec(0, 0.06, 0)))
+			pcall(SetAnimatorTransformIK, a, "shoulder_r", "hand_r", Transform(VecAdd(eyes, VecScale(side, -0.05))), 1, 0.5, false, true)
+			pcall(SetAnimatorTransformIK, a, "shoulder_l", "hand_l", Transform(VecAdd(eyes, VecScale(side, 0.05))), 1, 0.5, false, true)
+		end
+	end
 	-- (the arms after the clips, as bandaging does: before them the clip pose won and the extinguisher hung at the hip)
 	if post == "spray" and c.sprayIK then
 		pcall(SetAnimatorTransformIK, a, "shoulder_r", "hand_r", Transform(c.sprayIK[1]), 1, 0.4, false, true)

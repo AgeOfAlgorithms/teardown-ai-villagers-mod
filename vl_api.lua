@@ -10,13 +10,15 @@
 --        villagers.hurt.<n % 16>.*, villagers.hurt.last   damage to a villager from another mod
 --        villagers.carry.<id>.x/.y/.z/.by   a creature holds / drags a villager (cleared: let go)
 --        villagers.slow.<id>.factor/.until   webs and the like slow a villager's walking
+--        villagers.cause.<n % 16>.*   whose blast / shot (and whether the mod hurt the villagers itself)
+--        villagers.flash.<n % 16>.*   a flash-bang (blinds who sees it)   villagers.cover.<n % 16>.*   smoke
 --   out: villagers.present, villagers.version, villagers.list, villagers.v.<id>.*   who and where the villagers are
 --        villagers.strike.<n % 16>.*, villagers.strike.last   a villager hit one of your creatures
 --        villagers.feel.<villager id>.<k>, villagers.fear.<villager id>.<k>   each villager's own feeling and fear
 
 VlApi = VlApi or {things = {}, kinds = {}}
 local VA = VlApi
-VA.VERSION = 1
+VA.VERSION = 2                     -- (2: cause, flash, cover; villagers.v.<id>.blind)
 
 -- a feeling word -> how it reads to the villager (sense lists, events); anything else is shown as "you feel <word>"
 VA.FEELS = {
@@ -214,7 +216,7 @@ local function hearsNews(V, pos, range, sense)
 	local e = VecAdd(V.w.pos, Vec(0, 1.6, 0))
 	local d = VecLength(VecSub(pos, e))
 	if d > (range > 0 and range or 40) then return false end
-	if sense == "seen" then return VlPerceive.clear(e, pos) end
+	if sense == "seen" then return not VA.blind(V) and VlPerceive.sight(e, pos) end
 	return true
 end
 
@@ -356,6 +358,114 @@ local function noiseOf(V)
 	return n
 end
 
+-- ---------------------------------------------------------------- in: blame, flashes, smoke
+-- (2026-11-21, asked by the Wardrobe session for the user's McPuppet Tactical Gear Pack; generic for any mod)
+--   villagers.cause.<n % 16>.x/y/z/r/until/handled   a device's blast or shot (a trap, a mine, a charge): the engine's
+--     explosion / projectile hits within r m before until name nobody - no shooter is guessed from who aims there.
+--     (the user, 2026-11-21: villagers don't know who set a trap unless they see it, or work it out themselves from
+--     who holds what.) handled = true: the mod hurt the villagers itself (villagers.hurt), so those engine hits don't
+--     hurt them again
+--   villagers.flash.<n % 16>.x/y/z/range/strength   a flash-bang: who sees it (eyes, walls, facing) is blinded
+--     and stunned for up to VA.FLASH_SEC * strength s, everyone in range hears the bang
+--   villagers.cover.<n % 16>.x/y/z/r/until/id   smoke: a sphere villagers can't see through (or past 1.5 m inside);
+--     the same id again replaces the cloud (a drifting one)
+VA.causes, VA.covers = VA.causes or {}, VA.covers or {}
+VA.FLASH_SEC = 6
+
+local function ringTick(name, fn)
+	local last = GetInt("villagers." .. name .. ".last")
+	local k = name .. "Seen"
+	VA[k] = VA[k] or last
+	if VA[k] > last then VA[k] = last end
+	while VA[k] < last do
+		VA[k] = VA[k] + 1
+		fn("villagers." .. name .. "." .. (VA[k] % 16) .. ".")
+	end
+end
+
+local function pointOf(b) return Vec(GetFloat(b .. "x"), GetFloat(b .. "y"), GetFloat(b .. "z")) end
+
+function VA.causeTick()
+	local now = GetTime()
+	ringTick("cause", function(b)
+		VA.causes[#VA.causes + 1] = {pos = pointOf(b), r = num(b .. "r", 3),
+			untilT = math.min(now + 5, num(b .. "until", now + 0.5)), handled = GetBool(b .. "handled")}
+	end)
+	for i = #VA.causes, 1, -1 do if now > VA.causes[i].untilT then table.remove(VA.causes, i) end end
+end
+
+-- a device's blast / shot at this point (the newest cause that covers it): found, handled, the cause's point
+function VA.causeAt(point)
+	for i = #VA.causes, 1, -1 do
+		local c = VA.causes[i]
+		if VecLength(VecSub(point, c.pos)) <= c.r then return true, c.handled, c.pos end
+	end
+	return false, false, nil
+end
+
+-- does smoke block the line a -> b?
+function VA.smokeBlocks(a, b)
+	local ab = VecSub(b, a)
+	local L = VecLength(ab)
+	if L <= 1.5 then return false end                        -- (an arm's length: seen even in smoke)
+	for _, c in ipairs(VA.covers) do
+		local t = math.max(0, math.min(1, VecDot(VecSub(c.pos, a), ab) / (L * L)))
+		if VecLength(VecSub(VecAdd(a, VecScale(ab, t)), c.pos)) < c.r then return true end
+	end
+	return false
+end
+
+local function coverTick(now)
+	ringTick("cover", function(b)
+		local c = {pos = pointOf(b), r = num(b .. "r", 4), untilT = num(b .. "until", now + 20), id = str(b .. "id")}
+		for i = #VA.covers, 1, -1 do if c.id ~= "" and VA.covers[i].id == c.id then table.remove(VA.covers, i) end end
+		VA.covers[#VA.covers + 1] = c
+	end)
+	for i = #VA.covers, 1, -1 do if now > VA.covers[i].untilT then table.remove(VA.covers, i) end end
+end
+
+local function flashTick(now)
+	ringTick("flash", function(b)
+		local p = pointOf(b)
+		local range = num(b .. "range", 15)
+		local strength = math.max(0, math.min(1, num(b .. "strength", 1)))
+		local list = {}
+		for _, V in ipairs(VL.all or {}) do
+			if V.alive and not V.carried then
+				local eye = VecAdd(V.w.pos, Vec(0, 1.6, 0))
+				local d = VecLength(VecSub(p, eye))
+				if d < range then
+					local open = VlPerceive.clear(eye, p)
+					local fl = Vec(p[1] - V.w.pos[1], 0, p[3] - V.w.pos[3])
+					local L = VecLength(fl)
+					local c = L > 0.5 and (fl[1] * V.w.fwd[1] + fl[3] * V.w.fwd[3]) / L or 1
+					-- (eyes on it: full; to the side: half; behind: the glare off the walls)
+					local look = (not open or V.asleep or VA.smokeBlocks(eye, p)) and 0 or (c > 0.3 and 1 or (c > -0.35 and 0.5 or 0.15))
+					local s = strength * (1 - 0.6 * d / range)
+					local blind = look * s * VA.FLASH_SEC
+					local where = VlBrain.whereWords(V, p)
+					local text
+					if blind >= 0.5 then
+						V.blindUntil = math.max(V.blindUntil or 0, now + blind)
+						if V.conv then VlBrain.endConv(V.conv) end
+						VlNav.stop(V.w)
+						VlLife.setOverride(V, {kind = "stay", untilT = now + blind + 0.5})
+						text = "A blinding white flash and a deafening bang, " .. where .. "! You can't see a thing for a few seconds and your ears ring."
+					else
+						if V.asleep and d < range * 0.7 then VlLife.setOverride(V, {kind = "stay", untilT = now + 3}) end
+						text = "A deafening bang, " .. (open and "" or "muffled, through the walls, ") .. where .. "! You didn't see what it was."
+					end
+					list[#list + 1] = {O = V, text = text, seen = blind >= 0.5, d = d,
+						mem = {text = blind >= 0.5 and "A flash-bang blinded me" or "Heard a deafening bang", importance = 3, kind = "event"}}
+				end
+			end
+		end
+		VlBrain.incident(list)
+	end)
+end
+
+function VA.blind(V) return V.blindUntil ~= nil and GetTime() < V.blindUntil end
+
 -- ---------------------------------------------------------------- out: who and where the villagers are
 local function publish()
 	SetBool("villagers.present", true)
@@ -375,6 +485,7 @@ local function publish()
 		SetInt(b .. "shape", V.hitShape or 0)
 		SetFloat(b .. "noise", noiseOf(V))
 		SetBool(b .. "carried", V.carried ~= nil)
+		SetBool(b .. "blind", VA.blind(V))
 		for k in pairs(VA.kinds) do
 			local f = VA.feel(V, k)
 			SetString("villagers.feel." .. V.id .. "." .. k, f or "")
@@ -395,4 +506,6 @@ function VlApi.tick(dt)
 	tellTick()
 	hurtTick()
 	carryTick()
+	coverTick(now)
+	flashTick(now)
 end
